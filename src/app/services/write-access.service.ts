@@ -48,12 +48,16 @@ export class WriteAccessService {
           if ( !tenantId || !user?.uid ) return of( null );
           return this.accountBilling.getSummary( { tenantId, userId: user.uid, userEmail: user.email ?? '' } ).pipe(
             map( ( res ) => res?.data?.writeAccess ?? null ),
-            catchError( () => of( null ) ),
           );
         } ),
         shareReplay( { bufferSize: 1, refCount: false } ),
       );
     }
-    return this.cached$;
+    // A failed check reads as "no access" this time but isn't cached, so
+    // the next page asks again instead of staying locked until a reload.
+    return this.cached$.pipe( catchError( () => {
+      this.cached$ = null;
+      return of( null );
+    } ) );
   }
 }
