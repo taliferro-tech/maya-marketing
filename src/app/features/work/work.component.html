@@ -165,8 +165,19 @@
               <p class="wk-your-turn">Your turn</p>
               <h2>Waiting for your approval</h2>
               <article *ngFor="let item of jobApprovals; trackBy: trackApproval" class="wk-approval" data-cy="work-approval">
-                <img *ngIf="item.preview?.['imageSrc']" class="wk-approval__image" [src]="item.preview?.['imageSrc']" alt="" loading="lazy" />
-                <div class="wk-approval__body">
+                <img *ngIf="item.preview?.['imageSrc'] || item.preview?.['imageUrl']" class="wk-approval__image" [src]="item.preview?.['imageSrc'] || item.preview?.['imageUrl']" alt="" loading="lazy" />
+                <div *ngIf="item.step.tool === 'ads.launchCampaign'" class="wk-approval__body" data-cy="work-approval-ad">
+                  <p class="wk-meta"><strong>Facebook and Instagram ad</strong><span *ngIf="item.preview?.['productName']"> · {{ item.preview?.['productName'] }}</span></p>
+                  <p class="wk-post"><strong>{{ item.preview?.['headline'] }}</strong><br />{{ item.preview?.['primaryText'] }}</p>
+                  <p class="wk-meta">{{ adBudget( item.preview ) }}. Sends people to {{ item.preview?.['link'] }}.</p>
+                  <p class="wk-meta" *ngIf="item.job.summary">Why: {{ item.job.summary }}</p>
+                  <p class="wk-meta" *ngIf="item.preview?.['manageUrl']"><a [href]="item.preview?.['manageUrl']" target="_blank" rel="noopener">See it in Ads Manager</a> (it's paused until you approve).</p>
+                  <div class="wk-actions">
+                    <button type="button" class="wk-button" (click)="decide( item, 'approve' )" [disabled]="busy[item.job.id + '/' + item.step.id]" data-cy="work-approve">Approve and start the ad</button>
+                    <button type="button" class="wk-button wk-button--ghost" (click)="decide( item, 'reject' )" [disabled]="busy[item.job.id + '/' + item.step.id]" data-cy="work-reject">Not this one</button>
+                  </div>
+                </div>
+                <div *ngIf="item.step.tool !== 'ads.launchCampaign'" class="wk-approval__body">
                   <p class="wk-meta">
                     <strong>{{ platformLabel( item.preview?.['platform'] || 'social' ) }}</strong>
                     <span *ngIf="item.preview?.['accountLabel']"> · {{ item.preview?.['accountLabel'] }}</span>

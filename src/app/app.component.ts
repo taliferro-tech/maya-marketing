@@ -28,10 +28,11 @@ import { AppUpdateService } from './services/app-update.service';
         <button type="button" class="maya-pill" *ngIf="isChatHome && chat.hasHistory" (click)="chat.openHistory()" title="Past conversations">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg><span>History</span>
         </button>
-        <a class="maya-pill" routerLink="/marketing-employee" routerLinkActive="is-on" [routerLinkActiveOptions]="{ exact: true }" title="Status">
+        <!-- Status and Plan live on Today now (Ty, 2026-11-14); the buttons stay and open it. -->
+        <a class="maya-pill" href="https://app.16ahead.com/today?tab=run" title="Status">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18M18 17V9M13 17V5M8 17v-3"/></svg><span>Status</span>
         </a>
-        <a class="maya-pill" routerLink="/marketing-employee/plan" routerLinkActive="is-on" title="Plan">
+        <a class="maya-pill" href="https://app.16ahead.com/today?tab=plan" title="Plan">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M16 13H8M16 17H8"/></svg><span>Plan</span>
         </a>
         <app-platform-menu [isAdmin]="(isAdmin$ | async) ?? false" [isLoggedIn]="(isLoggedIn$ | async) ?? false" [userName]="(userName$ | async) ?? ''" [userEmail]="(userEmail$ | async) ?? ''" (signOut)="signOut()" />

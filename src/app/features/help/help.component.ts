@@ -32,8 +32,8 @@ export class HelpComponent {
   ];
 
   readonly places = [
-    { term: 'Status', route: '/marketing-employee', detail: 'The Marketing Assistant’s pipeline, scorecard, and today’s work.' },
-    { term: 'Plan', route: '/marketing-employee/plan', detail: 'Your marketing plan as a board: goals, audiences, channels and campaigns.' },
+    { term: 'Status', route: '/marketing-employee', detail: 'Today’s run on 16Ahead Today: the Marketing Assistant’s 10 steps, where it stopped and why.' },
+    { term: 'Plan', route: '/marketing-employee/plan', detail: 'Your marketing plan on 16Ahead Today: steps, goals, who does what, as a list or a timeline.' },
     { term: 'Work', route: '/work', detail: 'Jobs, approvals and the Marketing Assistant’s questions.' },
     { term: 'Profile', route: '/profile', detail: 'Your company details. The Marketing Assistant reads them before it advises.' },
     { term: 'Pricing', route: '/pricing', detail: 'What is free and what comes with the Marketing Assistant app.' },

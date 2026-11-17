@@ -1,6 +1,15 @@
 import { Routes } from '@angular/router';
 
-import { environment } from '../../../environments/environment';
+
+export const TODAY_URL = 'https://app.16ahead.com/today';
+
+/** Leaves the app for Today's tab; the route never renders. */
+export function forwardToToday ( tab: 'run' | 'plan' ): () => boolean {
+  return () => {
+    if ( typeof window !== 'undefined' ) window.location.replace( `${TODAY_URL}?tab=${tab}` );
+    return false;
+  };
+}
 
 export const marketingRoutes: Routes = [
   {
@@ -22,23 +31,18 @@ export const marketingRoutes: Routes = [
     redirectTo: '',
     pathMatch: 'full'
   },
+  // Status and Plan moved to Today (app.16ahead.com/today, Ty 2026-11-14).
+  // The old addresses forward there, so bookmarks, help links and the
+  // command palette still land on the right tab.
   {
     path: 'marketing-employee',
-    loadComponent: () =>
-      import( './pages/marketing-employee-home/marketing-employee-home.component' ).then(
-        ( m ) => m.MarketingEmployeeHomeComponent
-      ),
-    data: {
-      pageVideo: 'global'
-    },
-    title: environment.COMPANY_NAME + ' - Marketing Employee'
+    pathMatch: 'full',
+    canActivate: [forwardToToday( 'run' )],
+    children: [],
   },
   {
     path: 'marketing-employee/plan',
-    loadComponent: () =>
-      import( './pages/marketing-plan-board/marketing-plan-board.component' ).then(
-        ( m ) => m.MarketingPlanBoardComponent
-      ),
-    title: environment.COMPANY_NAME + ' - Marketing Plan'
+    canActivate: [forwardToToday( 'plan' )],
+    children: [],
   }
 ];

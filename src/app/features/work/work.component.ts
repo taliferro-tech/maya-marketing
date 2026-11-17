@@ -237,7 +237,7 @@ export class WorkComponent implements OnInit, OnDestroy {
         const decided = !!job.approvals?.[step.id];
         const ready = step.dependsOn.every( ( id ) => byId.get( id )?.status === 'done' );
         if ( step.access !== 'approval' || step.status !== 'pending' || step.approvedBy || decided || !ready ) continue;
-        const source = step.dependsOn.map( ( id ) => byId.get( id ) ).find( ( dep ) => dep?.tool === 'social.draftPost' );
+        const source = step.dependsOn.map( ( id ) => byId.get( id ) ).find( ( dep ) => dep?.tool === 'social.draftPost' || dep?.tool === 'ads.draftCampaign' );
         items.push( { job, step, preview: source?.output || null } );
       }
     }
@@ -551,6 +551,8 @@ export class WorkComponent implements OnInit, OnDestroy {
       case 'social.approvePost': return step.approvedBy === 'autopilot' ? 'Approved by autopilot' : 'Your approval to post';
       case 'email.create': return `Email: ${String( step.output?.['subject'] || 'design' )}`;
       case 'leads.findList': return step.output?.['count'] ? `Contact list: ${step.output['count']} people` : 'Contact list from Lead Vault';
+      case 'ads.draftCampaign': return `Facebook ad, paused: ${String( step.output?.['headline'] || input['headline'] || input['productName'] || 'draft' )}`;
+      case 'ads.launchCampaign': return 'Your approval to turn the ad on';
       default: return step.tool;
     }
   }
@@ -561,6 +563,13 @@ export class WorkComponent implements OnInit, OnDestroy {
     if ( step.status === 'skipped' ) return step.skipReason === 'rejected' ? 'You said no' : 'Skipped';
     if ( step.notBefore ) return `Waiting until ${this.shortDateTime( step.notBefore )}`;
     return 'To do';
+  }
+
+  /** "$10.00 a day for 7 days, about $70 at most" for an ad waiting on approval. */
+  adBudget ( preview: Record<string, any> | null ): string {
+    const cents = Number( preview?.['dailyBudgetCents'] || 0 );
+    if ( !cents ) return '';
+    return `$${ ( cents / 100 ).toFixed( 2 ) } a day for 7 days, about $${ Math.round( ( cents * 7 ) / 100 ) } at most`;
   }
 
   platformLabel ( platform: string ): string {
