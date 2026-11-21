@@ -78,6 +78,13 @@ const SLOW_POLL_MS = 30000;
 /** Which part of the work page a route shows. */
 export type WorkView = 'ask' | 'jobs' | 'job';
 
+/** The browse-mode note for each view: what the page does, for someone not signed in. */
+const BROWSE_COPY: Record<WorkView, string> = {
+  ask: 'This is where you give the Marketing Assistant a job: posts, a social calendar, an email. It plans the work, does it, and asks you before anything is posted.',
+  jobs: 'This is the list of every job you’ve given the Marketing Assistant: what it’s working on now, what’s waiting on you, and what it finished.',
+  job: 'This is one job on its own page: the plan, the drafts waiting for your approval, and what the Marketing Assistant made.',
+};
+
 /**
  * Maya's work, in three routes (Ty, 2026-10-30): /work is Ask (what to do,
  * and how hard she pushes back), /work/jobs lists every job with the ones
@@ -107,8 +114,10 @@ export class WorkComponent implements OnInit, OnDestroy {
     'Write an email introducing us to new prospects',
   ];
 
-  /** null until Firebase reports auth state; false shows the sign-in panel. */
+  /** null until Firebase reports auth state; false shows the page in browse mode. */
   isSignedIn: boolean | null = null;
+  /** What this view is for, shown in the browse-mode note when signed out. */
+  browseCopy = '';
   jobs: MayaJob[] = [];
   loaded = false;
   errorMessage = '';
@@ -160,19 +169,27 @@ export class WorkComponent implements OnInit, OnDestroy {
       return;
     }
     this.view = ( this.route.snapshot.data['view'] as WorkView ) || 'ask';
+    this.browseCopy = BROWSE_COPY[this.view];
     this.paramSubscription = this.route.paramMap.subscribe( ( params ) => {
       this.jobId = params.get( 'id' ) || '';
       this.jobMissing = false;
       this.openedJob = null;
       this.sendPanel = null;
-      if ( this.jobId && this.loaded ) void this.loadOpenedJob();
+      if ( this.jobId && this.loaded && this.isSignedIn ) void this.loadOpenedJob();
     } );
     this.authSubscription = this.authService.isLoggedIn().subscribe( ( signedIn ) => {
       const wasSignedIn = this.isSignedIn;
       this.isSignedIn = signedIn;
       if ( signedIn && !wasSignedIn ) {
+        this.loaded = false;
         void this.refresh();
         void this.loadSettings();
+      } else if ( !signedIn ) {
+        // Browse mode: the page shows empty instead of waiting on data it can't load.
+        if ( this.pollTimer ) clearTimeout( this.pollTimer );
+        this.jobs = [];
+        this.openedJob = null;
+        this.loaded = true;
       }
     } );
   }
@@ -186,7 +203,7 @@ export class WorkComponent implements OnInit, OnDestroy {
 
   /** Sign in goes through the get-started wizard, then comes back here. */
   signIn (): void {
-    void this.router.navigate( ['/get-started'], { queryParams: { returnUrl: '/work' } } );
+    void this.router.navigate( ['/get-started'], { queryParams: { returnUrl: this.router.url || '/work' } } );
   }
 
   /** The job this page shows, kept fresh by the list's polling. */
@@ -317,6 +334,10 @@ export class WorkComponent implements OnInit, OnDestroy {
   async start ( text?: string ): Promise<void> {
     const request = ( text ?? this.request ).trim();
     if ( !request || this.isStarting ) return;
+    if ( !this.isSignedIn ) {
+      this.signIn();
+      return;
+    }
     this.isStarting = true;
     this.errorMessage = '';
     this.needsPurchase = false;

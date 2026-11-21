@@ -25,6 +25,19 @@ describe( 'The Marketing Assistant’s work', () => {
     cy.get( '[data-cy="work-signed-out"]' ).should( 'exist' );
   } );
 
+  it( 'signed out, Jobs and Missions show in browse mode, not just a sign-in prompt', () => {
+    cy.visit( '/work/jobs' );
+    cy.get( '[data-cy="work-signed-out"]' ).should( 'contain.text', 'browse mode' );
+    cy.get( '[data-cy="work-tab-now"]' ).should( 'exist' );
+    cy.contains( 'No jobs yet' ).should( 'exist' );
+    cy.visit( '/missions' );
+    cy.get( '[data-cy="missions-signin"]' ).should( 'contain.text', 'browse mode' );
+    cy.get( '[data-cy="missions-browse-ask"] input' ).type( 'Plan a launch' );
+    cy.get( '[data-cy="missions-browse-ask"] button' ).click();
+    cy.location( 'pathname' ).should( 'eq', '/get-started' );
+    cy.location( 'search' ).should( 'contain', encodeURIComponent( '/missions?q=Plan%20a%20launch' ) );
+  } );
+
   it( 'old ?job= links open the job’s page', () => {
     cy.visit( '/work?job=done1' );
     cy.location( 'pathname' ).should( 'eq', '/work/jobs/done1' );

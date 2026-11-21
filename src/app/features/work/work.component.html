@@ -10,13 +10,15 @@
       </nav>
     </header>
 
-    <section *ngIf="isSignedIn === false" class="wk-card" data-cy="work-signed-out">
-      <h2>Sign in to work with the Marketing Assistant</h2>
-      <p class="wk-note">The Marketing Assistant’s work is saved to your 16Ahead workspace.</p>
+    <!-- Signed out: browse mode (network.16ahead.com is the model). The page still shows, empty. -->
+    <section *ngIf="isSignedIn === false" class="wk-card wk-browse" role="note" data-cy="work-signed-out">
+      <h2>You’re in browse mode</h2>
+      <p class="wk-note">{{ browseCopy }}</p>
+      <p class="wk-note">Sign in to save work to your 16Ahead workspace. Everything below fills in once you do.</p>
       <button type="button" class="wk-button" (click)="signIn()" data-cy="work-sign-in">Sign in</button>
     </section>
 
-    <ng-container *ngIf="isSignedIn">
+    <ng-container *ngIf="isSignedIn !== null">
       <p *ngIf="errorMessage" class="wk-error" role="alert" data-cy="work-error">
         {{ errorMessage }}
         <a *ngIf="needsPurchase" routerLink="/pricing">See plans</a>
@@ -97,9 +99,13 @@
       <ng-container *ngIf="view === 'job'">
         <a routerLink="/work/jobs" class="wk-back" data-cy="work-back">← All jobs</a>
         <p *ngIf="!job && !jobMissing" class="wk-note">Loading…</p>
-        <section *ngIf="!job && jobMissing" class="wk-card" data-cy="work-job-missing">
+        <section *ngIf="!job && jobMissing && isSignedIn" class="wk-card" data-cy="work-job-missing">
           <h2>We couldn’t find that job</h2>
           <p class="wk-note">It may have been removed, or it belongs to another workspace.</p>
+        </section>
+        <section *ngIf="!job && isSignedIn === false" class="wk-card" data-cy="work-job-signed-out">
+          <h2>This job is in a 16Ahead workspace</h2>
+          <p class="wk-note">Sign in to the workspace it belongs to and it opens here.</p>
         </section>
 
         <ng-container *ngIf="job as job">
