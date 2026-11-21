@@ -3,6 +3,7 @@
   "version": "2026.11.20-build.1",
   "private": true,
   "scripts": {
+    "auth:ui": "npx google-artifactregistry-auth",
     "ng": "ng",
     "start": "node scripts/generate-version.js && ng serve",
     "build": "node scripts/generate-version.js --bump && ng build",
@@ -32,7 +33,7 @@
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/manrope": "^5.3.0",
     "@fortawesome/fontawesome-free": "^6.7.2",
-    "@taliferro/ui": "file:../../taliferro-ui",
+    "@taliferro/ui": "^1.0.0",
     "bootstrap": "^5.3.3",
     "express": "^4.18.2",
     "firebase": "^11.6.0",
