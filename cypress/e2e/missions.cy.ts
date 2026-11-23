@@ -1,54 +1,27 @@
 /**
- * Missions from the Marketing Assistant (design_handoff_todd_missions 1e): work that needs more
- * than marketing gets a plan with an owner on every step. Fixtures come from
- * todd-backend scripts/missions-fixtures.js (the real engine).
+ * Work that needs more than marketing is a Mission, and Missions live in
+ * Moves (2026-11-23): the Marketing Assistant hands the request to Moves'
+ * New Mission page instead of planning it here. Moves' own specs cover the
+ * plan reply.
  */
 const ME = { uid: 'uid-owner', tenantId: 'tenant-1', paid: true };
-const MISSIONS = '**/api/orchestration/missions';
 
-describe( 'Missions from the Marketing Assistant (1e)', () => {
+describe( 'Missions from the Marketing Assistant go to Moves', () => {
   beforeEach( () => cy.intercept( { url: '**/api/**' }, { statusCode: 200, body: { success: true } } ) );
 
-  it( 'The Marketing Assistant’s work links to planning a Mission', () => {
+  it( 'The Marketing Assistant’s work links to planning a Mission in Moves', () => {
     cy.visitWithCypressAuth( '/work', ME );
-    cy.get( '[data-cy="work-to-missions"]' ).click();
-    cy.location( 'pathname' ).should( 'eq', '/missions' );
+    cy.get( '[data-cy="work-to-missions"]' ).should( 'have.attr', 'href', 'https://moves.16ahead.com/missions/new' );
   } );
 
-  it( 'a request to the Marketing Assistant comes back as a plan with it, 16Ahead and you on it', () => {
-    cy.fixture( 'missions/campaign-assets.json' ).then( ( m ) => {
-      const proposed = { ...m, id: 'campaign', status: 'proposed', steps: m.steps.map( ( s: any ) => ( { ...s, status: 'pending', output: null, resultSummary: '', finishedAt: null, finishedBy: null, activeSince: null } ) ) };
-      cy.intercept( 'POST', MISSIONS, { statusCode: 202, body: { success: true, mode: 'mission', mission: { ...proposed, status: 'queued', steps: [] } } } ).as( 'ask' );
-      cy.intercept( 'GET', `${MISSIONS}/campaign`, { success: true, mission: proposed } );
-    } );
-    cy.visitWithCypressAuth( '/missions', ME );
-    cy.get( '[data-cy="ask-input"]' ).should( 'have.attr', 'placeholder', 'What should the Marketing Assistant work on?' ).type( 'Create a complete marketing campaign for our new service.' );
-    cy.get( '[data-cy="ask-send"]' ).click();
-    cy.wait( '@ask' ).its( 'request.body.origin' ).should( 'eq', 'maya' );
-    cy.get( '[data-cy="plan-card"]' ).should( 'be.visible' );
-    cy.get( '[data-cy="plan-split"]' ).should( 'contain.text', 'by the Marketing Assistant' ).and( 'contain.text', 'by 16Ahead' ).and( 'contain.text', 'by you' );
-    cy.get( '[data-cy="plan-start"]' ).should( 'be.visible' );
+  it( 'old /missions links say Missions live in Moves and open Moves with the request kept', () => {
+    cy.visitWithCypressAuth( '/missions?q=Plan%20a%20launch', ME );
+    cy.get( '[data-cy="missions-in-moves"]' ).should( 'contain.text', 'Missions live in Moves' );
+    cy.get( '[data-cy="missions-open-moves"]' ).should( 'have.attr', 'href', 'https://moves.16ahead.com/missions/new?q=Plan%20a%20launch' );
   } );
 
-  it( 'emailing an industry about a new product is the segment plan, with the Marketing Assistant writing it', () => {
-    cy.fixture( 'missions/segment-proposed.json' ).then( ( m ) => {
-      cy.intercept( 'POST', MISSIONS, { statusCode: 202, body: { success: true, mode: 'mission', mission: { ...m, status: 'queued', steps: [] } } } ).as( 'ask' );
-      cy.intercept( 'GET', `${MISSIONS}/pitch-segment`, { success: true, mission: m } );
-    } );
-    cy.visitWithCypressAuth( '/missions', ME );
-    cy.get( '[data-cy="ask-input"]' ).type( 'Email the companies in the fashion industry about our new product.' );
-    cy.get( '[data-cy="ask-send"]' ).click();
-    cy.wait( '@ask' ).its( 'request.body.origin' ).should( 'eq', 'maya' );
-    cy.get( '[data-cy="plan-title"]' ).should( 'contain.text', 'Email an industry segment' );
-    cy.get( '[data-cy="plan-split"]' ).should( 'contain.text', 'by the Marketing Assistant' ).and( 'contain.text', 'by 16Ahead' ).and( 'contain.text', 'by you' );
-    cy.get( '[data-cy="fact-approvals"]' ).should( 'have.text', '1 approval from you' );
-  } );
-
-  it( 'a simple question is answered without a Mission', () => {
-    cy.fixture( 'missions/direct.json' ).then( ( body ) => cy.intercept( 'POST', MISSIONS, body ) );
-    cy.visitWithCypressAuth( '/missions', ME );
-    cy.get( '[data-cy="ask-input"]' ).type( 'What’s Roland Martin’s email?' );
-    cy.get( '[data-cy="ask-send"]' ).click();
-    cy.get( '[data-cy="direct-answer"]' ).should( 'contain.text', 'Answered here. No Mission.' );
+  it( 'signed out, the same card shows (Moves asks you to sign in)', () => {
+    cy.visit( '/missions' );
+    cy.get( '[data-cy="missions-open-moves"]' ).should( 'have.attr', 'href', 'https://moves.16ahead.com/missions/new' );
   } );
 } );

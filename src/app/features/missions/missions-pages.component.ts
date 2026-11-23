@@ -1,92 +1,55 @@
-import { Component, Directive, inject, OnInit, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { map } from 'rxjs';
+import { isPlatformBrowser } from '@angular/common';
+import { Component, inject, OnInit, PLATFORM_ID } from '@angular/core';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 
-import { AuthService } from '../../services/auth.service';
-import { PlanReplyComponent } from '../../shared/missions/plan-reply.component';
-
-/**
- * Missions from Maya (design_handoff_todd_missions 1e): work that needs more
- * than marketing gets a plan with an owner on every step - Maya's, TODD's and
- * yours. A started Mission lives in Moves. Shared taliferro-ui/missions screens.
- */
-@Directive()
-abstract class SignedInPage implements OnInit {
-  protected readonly auth = inject( AuthService );
-  readonly signedIn = signal<boolean | null>( null );
-  readonly viewerId = signal( '' );
-
-  ngOnInit (): void {
-    this.auth.isLoggedIn().subscribe( ( yes ) => {
-      this.signedIn.set( yes );
-      if ( yes ) this.viewerId.set( this.auth.getCurrentUserIdSync() || '' );
-    } );
-  }
+/** Where work that needs more than marketing is planned (Moves owns Missions). Exported for the spec. */
+export function movesNewMissionUrl ( q?: string | null ): string {
+  const request = ( q || '' ).trim();
+  return `https://moves.16ahead.com/missions/new${request ? `?q=${encodeURIComponent( request )}` : ''}`;
 }
 
-const STYLES = `
-  :host { display: block; min-height: 100vh; background: var(--bg); color: var(--text); font-family: var(--font); }
-  .page { max-width: 1100px; margin: 0 auto; padding: 28px 36px 64px; display: flex; flex-direction: column; gap: 20px; }
-  .wide { max-width: 1280px; }
-  .top { display: flex; align-items: center; gap: 14px; font-size: 14px; font-weight: 700; }
-  .top a { color: var(--text); text-decoration: none; }
-  .spacer { flex: 1; }
-  h1 { margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.04em; }
-  .signin { background: var(--surface); border-radius: 24px; padding: 24px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
-  .signin p { margin: 0; line-height: 1.5; }
-  .ask { display: flex; gap: 10px; }
-  .ask input { flex: 1; min-width: 0; height: 44px; padding: 0 16px; border: 1px solid var(--border, rgba(127,127,127,.3)); border-radius: 999px; background: var(--surface); color: var(--text); font: inherit; }
-  .btn { border: 0; cursor: pointer; font: inherit; font-weight: 700; height: 44px; padding: 0 22px; border-radius: 999px; background: var(--blue); color: #fff; font-weight: 700; display: inline-flex; align-items: center; text-decoration: none; }
-  @media (max-width: 640px) { .page { padding: 20px 16px 48px; } }
-`;
-
-// Signed out: browse mode (network.16ahead.com is the model) - the page still
-// shows, with the ask box; asking sends you to sign in and back with the question.
-const BROWSE = `
-  <div class="signin" role="note" data-cy="missions-signin">
-    <b>You’re in browse mode</b>
-    <p>This is where you hand the Marketing Assistant work that needs more than marketing. It writes a plan with an owner on every step (its own, the General Assistant’s and yours) and the Mission runs in Moves once you start it.</p>
-    <p>Sign in to plan one. Your question comes with you.</p>
-    <button type="button" class="btn" (click)="signIn()" data-cy="missions-sign-in">Sign in</button>
-  </div>
-  <form class="ask" (submit)="askSignedOut($event)" data-cy="missions-browse-ask">
-    <input [value]="draft()" (input)="draft.set($any($event.target).value)" placeholder="What should the Marketing Assistant work on?" aria-label="What do you need?">
-    <button type="submit" class="btn">Ask</button>
-  </form>`;
-
+/**
+ * Missions live in Moves (2026-11-23): Moves plans and runs every Mission;
+ * the assistants' apps hand the request over instead of creating Missions
+ * themselves. Old links to marketing.16ahead.com/missions (with any ?q=)
+ * land on Moves' New Mission page. The card says where it's going, so the
+ * page is never blank while Moves opens.
+ */
 @Component( {
   selector: 'app-maya-missions-page',
   standalone: true,
-  imports: [PlanReplyComponent, RouterLink],
+  imports: [RouterLink],
   template: `
     <div class="page">
-      <nav class="top"><a routerLink="/work">The Marketing Assistant’s work</a><span class="spacer"></span><a href="https://assistant.16ahead.com/playbooks" data-cy="to-playbooks">Playbooks</a></nav>
-      <h1>Plan it with the Marketing Assistant</h1>
-      @if (signedIn() === false) { ${BROWSE} }
-      @if (signedIn()) {
-        <tm-plan-reply [request]="q()" origin="maya" agent="maya" [viewerId]="viewerId()" detailBase="https://moves.16ahead.com/missions/" />
-      }
+      <nav class="top"><a routerLink="/work">The Marketing Assistant’s work</a></nav>
+      <section class="card" data-cy="missions-in-moves">
+        <h1>Missions live in Moves</h1>
+        <p>Work that needs more than marketing is planned in Moves: you say what you need, and the plan gives every step an owner (the Marketing Assistant, the General Assistant or you). Nothing starts until you press Start.</p>
+        <p class="muted">Opening Moves…</p>
+        <a class="btn" [href]="url" data-cy="missions-open-moves">Open Moves</a>
+      </section>
     </div>
   `,
-  styles: [STYLES],
+  styles: [`
+    :host { display: block; min-height: 100vh; background: var(--bg); color: var(--text); font-family: var(--font); }
+    .page { max-width: 760px; margin: 0 auto; padding: 28px 36px 64px; display: flex; flex-direction: column; gap: 20px; }
+    .top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; font-size: 14px; font-weight: 700; }
+    .top a { color: var(--text); text-decoration: none; }
+    .card { background: var(--surface); border-radius: 24px; padding: 24px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+    h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.03em; }
+    p { margin: 0; line-height: 1.5; }
+    .muted { color: var(--muted); font-size: 14px; }
+    .btn { height: 44px; padding: 0 22px; border-radius: 999px; background: var(--blue); color: #fff; font-weight: 700; display: inline-flex; align-items: center; text-decoration: none; }
+    @media (max-width: 640px) { .page { padding: 20px 16px 48px; } }
+  `],
 } )
-export class MayaMissionsPageComponent extends SignedInPage {
+export class MayaMissionsPageComponent implements OnInit {
   private readonly route = inject( ActivatedRoute );
-  private readonly router = inject( Router );
-  readonly q = toSignal( this.route.queryParamMap.pipe( map( ( p ) => p.get( 'q' ) || '' ) ), { initialValue: '' } );
-  /** The signed-out ask box. */
-  readonly draft = signal( this.route.snapshot.queryParamMap.get( 'q' ) || '' );
+  private readonly isBrowser = isPlatformBrowser( inject( PLATFORM_ID ) );
+  url = movesNewMissionUrl();
 
-  /** Sign in through the get-started wizard and come back to this page, question included. */
-  signIn ( question = '' ): void {
-    const returnUrl = question ? `/missions?q=${encodeURIComponent( question )}` : this.router.url || '/missions';
-    void this.router.navigate( ['/get-started'], { queryParams: { returnUrl } } );
-  }
-
-  askSignedOut ( event: Event ): void {
-    event.preventDefault();
-    this.signIn( this.draft().trim() );
+  ngOnInit (): void {
+    this.url = movesNewMissionUrl( this.route.snapshot.queryParamMap.get( 'q' ) );
+    if ( this.isBrowser && !( window as unknown as { Cypress?: unknown } ).Cypress ) window.location.replace( this.url );
   }
 }
-

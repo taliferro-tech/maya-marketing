@@ -41,10 +41,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/work/work.component').then((m) => m.WorkComponent),
   },
   {
-    // Work that needs more than marketing: a Mission with an owner on every
-    // step (design_handoff_todd_missions 1e).
+    // Work that needs more than marketing is a Mission, and Missions live in
+    // Moves (2026-11-23): old links land on Moves' New Mission page, ?q= kept.
     path: 'missions',
-    title: 'Plan it with the Marketing Assistant',
+    title: 'Missions live in Moves',
     loadComponent: () => import('./features/missions/missions-pages.component').then((m) => m.MayaMissionsPageComponent),
   },
   {
