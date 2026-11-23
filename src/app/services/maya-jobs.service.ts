@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { getAuth } from 'firebase/auth';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 import { environment } from '../../environments/environment';
 
 export type MayaJobStatus =
@@ -80,6 +80,12 @@ export interface EmailFillIn {
  * something, follow it, answer her questions, and approve or reject what's
  * waiting on you. Authenticated with the signed-in user's Firebase ID token.
  */
+/**
+ * Reads give up after this long, so a call that never answers shows an
+ * error (and the page's next poll retries) instead of "Loading…" forever.
+ */
+export const READ_TIMEOUT_MS = 12000;
+
 @Injectable( { providedIn: 'root' } )
 export class MayaJobsService {
   constructor ( private readonly http: HttpClient ) { }
@@ -92,13 +98,13 @@ export class MayaJobsService {
 
   async list ( limit = 25 ): Promise<MayaJob[]> {
     const response = await firstValueFrom( this.http.get<{ jobs: MayaJob[] }>(
-      `${environment.backendURL}/maya/jobs`, { params: { limit }, headers: await this.headers() } ) );
+      `${environment.backendURL}/maya/jobs`, { params: { limit }, headers: await this.headers() } ).pipe( timeout( READ_TIMEOUT_MS ) ) );
     return response.jobs || [];
   }
 
   async get ( jobId: string ): Promise<MayaJob> {
     const response = await firstValueFrom( this.http.get<{ job: MayaJob }>(
-      `${environment.backendURL}/maya/jobs/${encodeURIComponent( jobId )}`, { headers: await this.headers() } ) );
+      `${environment.backendURL}/maya/jobs/${encodeURIComponent( jobId )}`, { headers: await this.headers() } ).pipe( timeout( READ_TIMEOUT_MS ) ) );
     return response.job;
   }
 

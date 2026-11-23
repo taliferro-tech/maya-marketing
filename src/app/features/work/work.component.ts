@@ -85,6 +85,47 @@ const BROWSE_COPY: Record<WorkView, string> = {
   job: 'This is one job on its own page: the plan, the drafts waiting for your approval, and what the Marketing Assistant made.',
 };
 
+/** A failed load in plain words: no answer in time reads as that, not "Timeout has occurred". */
+export function loadErrorText ( error: any, fallback: string ): string {
+  if ( error?.name === 'TimeoutError' ) return `${fallback} It took too long to answer; trying again shortly.`;
+  return error?.error?.message || fallback;
+}
+
+/** Everything waiting for a yes or no across these jobs, oldest job first. */
+function approvalsFor ( jobs: MayaJob[] ): ApprovalItem[] {
+  const items: ApprovalItem[] = [];
+  for ( const job of [...jobs].reverse() ) {
+    if ( job.status === 'cancelled' || job.status === 'failed' ) continue;
+    const steps = job.steps || [];
+    const byId = new Map( steps.map( ( step ) => [step.id, step] ) );
+    for ( const step of steps ) {
+      const dependsOn = step.dependsOn || [];
+      const decided = !!job.approvals?.[step.id];
+      const ready = dependsOn.every( ( id ) => byId.get( id )?.status === 'done' );
+      if ( step.access !== 'approval' || step.status !== 'pending' || step.approvedBy || decided || !ready ) continue;
+      const source = dependsOn.map( ( id ) => byId.get( id ) ).find( ( dep ) => dep?.tool === 'social.draftPost' || dep?.tool === 'ads.draftCampaign' );
+      items.push( { job, step, preview: source?.output || null } );
+    }
+  }
+  return items;
+}
+
+/** Contact lists Maya built from Lead Vault in a job. */
+function contactListsFor ( job: MayaJob | null ): ContactListResult[] {
+  return ( job?.steps || [] )
+    .filter( ( step ) => step.tool === 'leads.findList' && step.status === 'done' && step.output?.['documentId'] )
+    .map( ( step ) => ( {
+      documentId: String( step.output!['documentId'] ),
+      title: String( step.output!['title'] || 'Contact list' ),
+      count: Number( step.output!['count'] ) || 0,
+      requested: Number( step.output!['requested'] ) || 0,
+      who: String( step.output!['who'] || '' ),
+      url: String( step.output!['src'] || '' ),
+      sample: ( Array.isArray( step.output!['sample'] ) ? step.output!['sample'] : [] )
+        .map( ( row: any ) => [row?.name, row?.title && row?.company ? `${row.title}, ${row.company}` : row?.company].filter( Boolean ).join( ' - ' ) ),
+    } ) );
+}
+
 /**
  * Maya's work, in three routes (Ty, 2026-10-30): /work is Ask (what to do,
  * and how hard she pushes back), /work/jobs lists every job with the ones
@@ -118,9 +159,28 @@ export class WorkComponent implements OnInit, OnDestroy {
   isSignedIn: boolean | null = null;
   /** What this view is for, shown in the browse-mode note when signed out. */
   browseCopy = '';
-  jobs: MayaJob[] = [];
+  // jobs, openedJob, jobId and tab are accessors so every write refreshes
+  // the shown fields below (recompute), wherever it happens.
+  private jobsValue: MayaJob[] = [];
+  get jobs (): MayaJob[] { return this.jobsValue; }
+  set jobs ( value: MayaJob[] ) { this.jobsValue = value; this.recompute(); }
+  /** The job /work/jobs/:id shows: from the list, else loaded on its own. */
+  job: MayaJob | null = null;
+  /** Jobs waiting on the person: a concern, a question, drafts to approve, or a stop. */
+  needsYouJobs: MayaJob[] = [];
+  /** Everything waiting for a yes or no, oldest job first. */
+  approvals: ApprovalItem[] = [];
+  jobApprovals: ApprovalItem[] = [];
+  jobEmails: EmailResult[] = [];
+  /** Contact lists Maya built from Lead Vault in this job. */
+  jobContactLists: ContactListResult[] = [];
+  currentJobs: MayaJob[] = [];
+  pastJobs: MayaJob[] = [];
+  shownJobs: MayaJob[] = [];
   loaded = false;
   errorMessage = '';
+  /** Set while loading the jobs (or this job) is failing; the next poll tries again. */
+  loadError = '';
   needsPurchase = false;
   request = '';
   isStarting = false;
@@ -132,16 +192,22 @@ export class WorkComponent implements OnInit, OnDestroy {
   previewOpen: Record<string, boolean> = {};
   sendPanel: SendPanel | null = null;
   view: WorkView = 'ask';
+  private jobIdValue = '';
   /** The job /work/jobs/:id shows. */
-  jobId = '';
+  get jobId (): string { return this.jobIdValue; }
+  set jobId ( value: string ) { this.jobIdValue = value; this.recompute(); }
   /** Set when that job isn't in the list and couldn't be loaded on its own. */
   jobMissing = false;
   /** A job opened by id that's older than the list goes back (kept so its page still works). */
-  private openedJob: MayaJob | null = null;
+  private openedJobValue: MayaJob | null = null;
+  private get openedJob (): MayaJob | null { return this.openedJobValue; }
+  private set openedJob ( value: MayaJob | null ) { this.openedJobValue = value; this.recompute(); }
   /** Decision cards whose full request is showing. */
   requestOpen: Record<string, boolean> = {};
   /** Jobs list tab: what's going on now, or finished work. */
-  tab: 'now' | 'past' = 'now';
+  private tabValue: 'now' | 'past' = 'now';
+  get tab (): 'now' | 'past' { return this.tabValue; }
+  set tab ( value: 'now' | 'past' ) { this.tabValue = value; this.recompute(); }
   readonly targetNames: Record<EmailSendTarget, string> = { catalyst: 'Catalyst', composer: 'Email Composer', drips: 'Drips' };
   readonly editUrl = emailCreatorEditUrl;
   private emailHtml: Record<string, string> = {};
@@ -182,6 +248,9 @@ export class WorkComponent implements OnInit, OnDestroy {
       this.isSignedIn = signedIn;
       if ( signedIn && !wasSignedIn ) {
         this.loaded = false;
+        // A job's page asks for that one job straight away, alongside the
+        // list, so it shows without waiting on all 25 jobs.
+        if ( this.view === 'job' && this.jobId ) void this.loadOpenedJob();
         void this.refresh();
         void this.loadSettings();
       } else if ( !signedIn ) {
@@ -206,59 +275,23 @@ export class WorkComponent implements OnInit, OnDestroy {
     void this.router.navigate( ['/get-started'], { queryParams: { returnUrl: this.router.url || '/work' } } );
   }
 
-  /** The job this page shows, kept fresh by the list's polling. */
-  get job (): MayaJob | null {
-    if ( !this.jobId ) return null;
-    return this.jobs.find( ( job ) => job.id === this.jobId ) || this.openedJob;
-  }
-
-  /** Jobs waiting on the person: a concern, a question, drafts to approve, or a stop. */
-  get needsYouJobs (): MayaJob[] {
+  // What the template shows is worked out here once per change to the jobs,
+  // the opened job, the job id or the tab, not on every change-detection
+  // pass (template rule: no getters doing real work in bindings).
+  private recompute (): void {
+    const jobs = this.jobsValue;
+    const opened = this.openedJobValue;
+    const jobId = this.jobIdValue;
+    this.job = jobId ? jobs.find( ( job ) => job.id === jobId ) || opened : null;
+    this.approvals = approvalsFor( opened && !jobs.some( ( job ) => job.id === opened.id ) ? [...jobs, opened] : jobs );
     const waiting = new Set( this.approvals.map( ( item ) => item.job.id ) );
-    return this.jobs.filter( ( job ) => NEEDS_YOU_STATUSES.has( job.status ) || waiting.has( job.id ) );
-  }
-
-  get jobApprovals (): ApprovalItem[] {
-    return this.approvals.filter( ( entry ) => entry.job.id === this.jobId );
-  }
-
-  get jobEmails (): EmailResult[] {
-    const job = this.job;
-    return job ? this.emails( job ) : [];
-  }
-
-  /** Contact lists Maya built from Lead Vault in this job. */
-  get jobContactLists (): ContactListResult[] {
-    return ( this.job?.steps || [] )
-      .filter( ( step ) => step.tool === 'leads.findList' && step.status === 'done' && step.output?.['documentId'] )
-      .map( ( step ) => ( {
-        documentId: String( step.output!['documentId'] ),
-        title: String( step.output!['title'] || 'Contact list' ),
-        count: Number( step.output!['count'] ) || 0,
-        requested: Number( step.output!['requested'] ) || 0,
-        who: String( step.output!['who'] || '' ),
-        url: String( step.output!['src'] || '' ),
-        sample: ( Array.isArray( step.output!['sample'] ) ? step.output!['sample'] : [] )
-          .map( ( row: any ) => [row?.name, row?.title && row?.company ? `${row.title}, ${row.company}` : row?.company].filter( Boolean ).join( ' - ' ) ),
-      } ) );
-  }
-
-  /** Everything waiting for a yes or no, oldest job first. */
-  get approvals (): ApprovalItem[] {
-    const items: ApprovalItem[] = [];
-    const jobs = this.openedJob && !this.jobs.some( ( job ) => job.id === this.openedJob!.id ) ? [...this.jobs, this.openedJob] : this.jobs;
-    for ( const job of [...jobs].reverse() ) {
-      if ( job.status === 'cancelled' || job.status === 'failed' ) continue;
-      const byId = new Map( job.steps.map( ( step ) => [step.id, step] ) );
-      for ( const step of job.steps ) {
-        const decided = !!job.approvals?.[step.id];
-        const ready = step.dependsOn.every( ( id ) => byId.get( id )?.status === 'done' );
-        if ( step.access !== 'approval' || step.status !== 'pending' || step.approvedBy || decided || !ready ) continue;
-        const source = step.dependsOn.map( ( id ) => byId.get( id ) ).find( ( dep ) => dep?.tool === 'social.draftPost' || dep?.tool === 'ads.draftCampaign' );
-        items.push( { job, step, preview: source?.output || null } );
-      }
-    }
-    return items;
+    this.needsYouJobs = jobs.filter( ( job ) => NEEDS_YOU_STATUSES.has( job.status ) || waiting.has( job.id ) );
+    this.jobApprovals = this.approvals.filter( ( entry ) => entry.job.id === jobId );
+    this.jobEmails = this.job ? this.emails( this.job ) : [];
+    this.jobContactLists = contactListsFor( this.job );
+    this.currentJobs = jobs.filter( ( job ) => this.isCurrent( job ) );
+    this.pastJobs = jobs.filter( ( job ) => !this.isCurrent( job ) );
+    this.shownJobs = this.tabValue === 'now' ? this.currentJobs : this.pastJobs;
   }
 
   async decidePlan ( job: MayaJob, choice: 'recommended' | 'as_asked' | 'cancel' ): Promise<void> {
@@ -309,17 +342,6 @@ export class WorkComponent implements OnInit, OnDestroy {
     return Date.now() - new Date( job.updatedAt ).getTime() < RECENT_MS;
   }
 
-  get currentJobs (): MayaJob[] {
-    return this.jobs.filter( ( job ) => this.isCurrent( job ) );
-  }
-
-  get pastJobs (): MayaJob[] {
-    return this.jobs.filter( ( job ) => !this.isCurrent( job ) );
-  }
-
-  get shownJobs (): MayaJob[] {
-    return this.tab === 'now' ? this.currentJobs : this.pastJobs;
-  }
 
   /** What the person asked, without the brief the chat appended. */
   jobTitle ( job: MayaJob ): string {
@@ -367,6 +389,7 @@ export class WorkComponent implements OnInit, OnDestroy {
         ...( item.job.approvals || {} ),
         [item.step.id]: { decision: decision === 'approve' ? 'approved' : 'rejected', by: 'you', at: new Date().toISOString() },
       };
+      this.recompute();
       this.schedulePoll( FAST_POLL_MS );
     } catch ( error: any ) {
       this.errorMessage = error?.error?.message || error?.message || 'That didn’t go through. Please try again.';
@@ -383,7 +406,7 @@ export class WorkComponent implements OnInit, OnDestroy {
 
   /** Emails Maya designed in this job, with anything still to fill in before sending. */
   emails ( job: MayaJob ): EmailResult[] {
-    return job.steps
+    return ( job.steps || [] )
       .filter( ( step ) => step.tool === 'email.create' && step.status === 'done' && step.output?.['documentId'] )
       .map( ( step ) => ( {
         documentId: String( step.output!['documentId'] ),
@@ -648,21 +671,26 @@ export class WorkComponent implements OnInit, OnDestroy {
     try {
       const job = await this.api.get( jobId );
       if ( this.jobId === jobId ) this.openedJob = job;
-    } catch {
-      if ( this.jobId === jobId ) this.jobMissing = true;
+    } catch ( error: any ) {
+      if ( this.jobId !== jobId || this.job ) return;
+      // Not found (or another workspace's) says so; anything else (no
+      // answer, a server error) is an error to retry, not a missing job.
+      if ( error?.status === 404 || error?.status === 403 ) this.jobMissing = true;
+      else this.loadError = loadErrorText( error, 'We couldn’t load this job.' );
     }
   }
 
   private async refresh (): Promise<void> {
     try {
       this.jobs = await this.api.list();
+      this.loadError = '';
       if ( this.jobId && !this.jobs.some( ( job ) => job.id === this.jobId ) ) {
         // Refetched each pass so a job opened by id stays current too.
         await this.loadOpenedJob();
       }
       this.loaded = true;
     } catch ( error: any ) {
-      this.errorMessage = error?.error?.message || error?.message || 'We couldn’t load the Marketing Assistant’s work.';
+      this.loadError = loadErrorText( error, 'We couldn’t load the Marketing Assistant’s work.' );
     }
     const active = this.jobs.some( ( job ) => this.isActive( job ) ) || ( !!this.openedJob && this.isActive( this.openedJob ) );
     this.schedulePoll( active ? FAST_POLL_MS : SLOW_POLL_MS );

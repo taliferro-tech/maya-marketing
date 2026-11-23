@@ -19,6 +19,7 @@
     </section>
 
     <ng-container *ngIf="isSignedIn !== null">
+      <p *ngIf="loadError && !errorMessage" class="wk-error" role="alert" data-cy="work-load-error">{{ loadError }}</p>
       <p *ngIf="errorMessage" class="wk-error" role="alert" data-cy="work-error">
         {{ errorMessage }}
         <a *ngIf="needsPurchase" routerLink="/pricing">See plans</a>
@@ -78,7 +79,7 @@
                     (click)="tab = 'past'" data-cy="work-tab-past">Past <span class="wk-tab__count">{{ pastJobs.length }}</span></button>
           </div>
           <p class="wk-note">{{ tab === 'now' ? 'What the Marketing Assistant is working on, what’s waiting on you, and anything it finished in the last day.' : 'Everything older. Open a job to see what it made.' }}</p>
-          <p *ngIf="!loaded" class="wk-note">Loading…</p>
+          <p *ngIf="!loaded && !loadError" class="wk-note">Loading…</p>
           <p *ngIf="loaded && !jobs.length" class="wk-note">No jobs yet. <a routerLink="/work">Ask the Marketing Assistant for something</a>.</p>
           <p *ngIf="loaded && jobs.length && !shownJobs.length" class="wk-note">
             {{ tab === 'now' ? 'Nothing going on right now. Finished jobs are under Past.' : 'Nothing older than a day yet.' }}</p>
@@ -98,7 +99,7 @@
       <!-- One job, and everything it needs from you. -->
       <ng-container *ngIf="view === 'job'">
         <a routerLink="/work/jobs" class="wk-back" data-cy="work-back">← All jobs</a>
-        <p *ngIf="!job && !jobMissing" class="wk-note">Loading…</p>
+        <p *ngIf="!job && !jobMissing && !loadError" class="wk-note">Loading…</p>
         <section *ngIf="!job && jobMissing && isSignedIn" class="wk-card" data-cy="work-job-missing">
           <h2>We couldn’t find that job</h2>
           <p class="wk-note">It may have been removed, or it belongs to another workspace.</p>
