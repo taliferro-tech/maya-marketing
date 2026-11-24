@@ -35,7 +35,7 @@ import { AppUpdateService } from './services/app-update.service';
         <a class="maya-pill" href="https://app.16ahead.com/today?tab=plan" title="Plan">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M16 13H8M16 17H8"/></svg><span>Plan</span>
         </a>
-        <app-platform-menu [isAdmin]="(isAdmin$ | async) ?? false" [isLoggedIn]="(isLoggedIn$ | async) ?? false" [userName]="(userName$ | async) ?? ''" [userEmail]="(userEmail$ | async) ?? ''" (signOut)="signOut()" />
+        <app-platform-menu [isAdmin]="(isAdmin$ | async) ?? false" [isLoggedIn]="(isLoggedIn$ | async) ?? false" [userName]="(userName$ | async) ?? ''" [userEmail]="(userEmail$ | async) ?? ''" [userId]="(userId$ | async) ?? ''" (signOut)="signOut()" />
       </nav>
     </header>
     <app-notification />
@@ -52,6 +52,7 @@ export class AppComponent {
   readonly isAdmin$ = this.authService.getUser().pipe( map( user => user?.uid === environment.taliferroTenantId ) );
   readonly userName$ = this.authService.getUser().pipe( map( user => user?.displayName || '' ) );
   readonly userEmail$ = this.authService.getUser().pipe( map( user => user?.email || '' ) );
+  readonly userId$ = this.authService.getUser().pipe( map( user => user?.uid || '' ) );
 
   constructor () {
     inject( AppUpdateService ).start();
