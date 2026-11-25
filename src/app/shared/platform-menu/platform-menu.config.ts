@@ -9,6 +9,7 @@ export const PLATFORM_MENU_CONFIG: MenuAppConfig = {
     { label: 'Status', icon: 'chart', route: '/marketing-employee', keywords: 'report progress' },
     { label: 'Plan', icon: 'file', route: '/marketing-employee/plan', keywords: 'marketing plan board' },
     { label: 'Work', icon: 'grid', route: '/work', keywords: 'tasks projects' },
+    { label: 'Weekly reports', icon: 'list', url: 'https://app.16ahead.com/marketing/reports', keywords: 'report scorecard kpi results' },
   ],
   secondaryItems: [
     { label: 'Profile', icon: 'user', route: '/profile' },
